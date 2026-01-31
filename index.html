@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Asientos - Turismo 03</title>
+    <style>
+        :root {
+            --primary-color: #d32f2f;
+            --window-color: #2196F3;
+            --aisle-color: #4CAF50;
+            --occupied-color: #616161;
+            --bg-light: #f5f5f5;
+            --table-header: #37474F;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-light);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1, h2 { color: #333; text-align: center; width: 100%; }
+        h1 {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 900px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* --- CONTROLES --- */
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            transition: 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+
+        .btn-share { background-color: #FF9800; }
+        .btn-excel { background-color: #2E7D32; }
+
+        #shareLinkInput {
+            display: none;
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        /* --- LEYENDA --- */
+        .legend {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .legend-item { display: flex; align-items: center; }
+        .legend-color { width: 15px; height: 15px; margin-right: 5px; border-radius: 3px; }
+
+        /* --- GRID DEL BUS --- */
+        .bus-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr) 40px repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 40px;
+        }
+
+        .seat {
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            padding: 5px;
+            text-align: center;
+            cursor: pointer;
+            background-color: white;
+            min-height: 65px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            transition: all 0.2s;
+            overflow: hidden;
+        }
+
+        .seat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            border-color: #999;
+        }
+
+        .seat[data-type*="V"] { border-color: var(--window-color); color: var(--window-color); font-weight: bold; }
+        .seat[data-type*="P"] { border-color: var(--aisle-color); color: var(--aisle-color); font-weight: bold; }
+
+        .seat.occupied {
+            background-color: var(--occupied-color) !important;
+            border-color: #424242 !important;
+            color: white !important;
+        }
+
+        .seat-info-small { 
+            font-size: 11px; 
+            margin-top: 2px; 
+            font-weight: normal; 
+            color: #fff; 
+            line-height: 1.2;
+            width: 100%;
+        }
+
+        /* Posicionamiento específico */
+        [data-id="3VP"] { grid-column: 4 / span 2; }
+        [data-id="40V"] { grid-row-start: 12; grid-column: 1; }
+        [data-id="41P"] { grid-row-start: 12; grid-column: 2; }
+        [data-id="44P"] { grid-row-start: 12; grid-column: 3; }
+        [data-id="42P"] { grid-row-start: 12; grid-column: 4; }
+        [data-id="43V"] { grid-row-start: 12; grid-column: 5; }
+
+        /* --- TABLA MANIFIESTO (VISUAL WEB) --- */
+        .manifest-container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: var(--table-header); color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        
+        .col-seat { text-align: center; font-weight: bold; width: 50px; }
+
+        /* --- MODAL --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 320px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .modal-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: var(--primary-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #555; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+
+        .modal-actions { display: flex; justify-content: space-between; margin-top: 20px; gap: 10px; }
+        .btn-cancel { background-color: #757575; width: 100%; }
+        .btn-save { background-color: var(--primary-color); width: 100%; }
+        .btn-delete { background-color: #d32f2f; margin-top: 10px; width: 100%; display: none; }
+
+        /* MODO LECTURA */
+        .read-only-banner { display: none; background-color: #FF9800; color: white; padding: 10px; width: 100%; text-align: center; font-weight: bold; }
+        body.read-only .read-only-banner { display: block; }
+        body.read-only .controls { display: none; }
+        body.read-only .seat { pointer-events: none; }
+
+    </style>
+</head>
+<body>
+
+    <div class="read-only-banner">⚠️ MODO VISUALIZACIÓN (Solo Lectura)</div>
+
+    <h1>DISTRIBUCIÓN TURISMO 03</h1>
+
+    <div class="controls">
+        <button class="btn-share" onclick="generateShareLink()">🔗 Compartir Visualización</button>
+        <button class="btn-excel" onclick="generateStrictExcel()">📊 Descargar Lista para Excel</button>
+    </div>
+    
+    <div style="text-align: center; width: 100%; display: flex; justify-content: center;">
+        <input type="text" id="shareLinkInput" readonly placeholder="El enlace aparecerá aquí...">
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background: var(--window-color)"></div>Ventana</div>
+        <div class="legend-item"><div class="legend-color" style="background: var(--aisle-color)"></div>Pasillo</div>
+        <div class="legend-item"><div class="legend-color" style="background: var(--occupied-color)"></div>Ocupado</div>
+    </div>
+
+    <div class="bus-container" id="busGrid"></div>
+
+    <div class="manifest-container">
+        <h2 style="margin-top: 0; text-align: left; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px;">📋 Lista de Pasajeros</h2>
+        <table id="passengersTable">
+            <thead>
+                <tr>
+                    <th class="col-seat">No.</th>
+                    <th>Nombre y Apellido</th>
+                    <th>Nacionalidad</th>
+                    <th>Cédula / DNI</th>
+                </tr>
+            </thead>
+            <tbody id="manifestBody">
+                </tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="seatModal">
+        <div class="modal-content">
+            <div class="modal-header">Asiento <span id="modalSeatLabel"></span></div>
+            
+            <div class="form-group">
+                <label for="pFullName">Nombre y Apellido:</label>
+                <input type="text" id="pFullName" placeholder="Ej: Juan Pérez">
+            </div>
+
+            <div class="form-group">
+                <label for="pNation">Nacionalidad:</label>
+                <input type="text" id="pNation" placeholder="Ej: ECUATORIANO" value="ECUATORIANO">
+            </div>
+
+            <div class="form-group">
+                <label for="pId">Número de Cédula:</label>
+                <input type="number" id="pId" placeholder="Ej: 1700000000">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+                <button class="btn-save" onclick="savePassenger()">Guardar</button>
+            </div>
+            <button class="btn-delete" id="btnDelete" onclick="deletePassenger()">Liberar Asiento</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE ASIENTOS
+        const seatLayout = [
+            { id: '1V', col: 1 }, { id: '2P', col: 2 }, { id: '3VP', col: 'special' },
+            { id: '4V', col: 1 }, { id: '5P', col: 2 }, { id: '6P', col: 4 }, { id: '7V', col: 5 },
+            { id: '8V', col: 1 }, { id: '9P', col: 2 }, { id: '10P', col: 4 }, { id: '11V', col: 5 },
+            { id: '12V', col: 1 }, { id: '13P', col: 2 }, { id: '14P', col: 4 }, { id: '15V', col: 5 },
+            { id: '16V', col: 1 }, { id: '17P', col: 2 }, { id: '18P', col: 4 }, { id: '19V', col: 5 },
+            { id: '20V', col: 1 }, { id: '21P', col: 2 }, { id: '22P', col: 4 }, { id: '23V', col: 5 },
+            { id: '24V', col: 1 }, { id: '25P', col: 2 }, { id: '26P', col: 4 }, { id: '27V', col: 5 },
+            { id: '28V', col: 1 }, { id: '29P', col: 2 }, { id: '30P', col: 4 }, { id: '31V', col: 5 },
+            { id: '32V', col: 1 }, { id: '33P', col: 2 }, { id: '34P', col: 4 }, { id: '35V', col: 5 },
+            { id: '36V', col: 1 }, { id: '37P', col: 2 }, { id: '38P', col: 4 }, { id: '39V', col: 5 },
+            { id: '40V', col: 'back' }, { id: '41P', col: 'back' }, { id: '44P', col: 'back' }, { id: '42P', col: 'back' }, { id: '43V', col: 'back' }
+        ];
+
+        let passengersData = {}; 
+        let currentSeatId = null;
+        let isReadOnlyMode = false;
+
+        // ELEMENTOS DOM
+        const busGrid = document.getElementById('busGrid');
+        const manifestBody = document.getElementById('manifestBody');
+        const modal = document.getElementById('seatModal');
+        const inpFullName = document.getElementById('pFullName'); 
+        const inpNation = document.getElementById('pNation');
+        const inpId = document.getElementById('pId');
+        const btnDelete = document.getElementById('btnDelete');
+
+        // INICIALIZACIÓN
+        function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedData = urlParams.get('data');
+
+            if (sharedData) {
+                try {
+                    passengersData = JSON.parse(atob(sharedData));
+                    isReadOnlyMode = true;
+                    document.body.classList.add('read-only');
+                } catch (e) {
+                    alert("Error en enlace compartido.");
+                    loadLocalData();
+                }
+            } else {
+                loadLocalData();
+            }
+            
+            renderSeats();
+            refreshAll();
+        }
+
+        // RENDERIZAR ASIENTOS
+        function renderSeats() {
+            busGrid.innerHTML = '';
+            seatLayout.forEach(seatInfo => {
+                const seatEl = document.createElement('div');
+                seatEl.className = 'seat';
+                seatEl.dataset.id = seatInfo.id;
+                
+                let type = "P";
+                if(seatInfo.id.includes('VP')) type = "VP";
+                else if(seatInfo.id.includes('V')) type = "V";
+                
+                seatEl.dataset.type = type;
+
+                seatEl.innerHTML = `
+                    <span style="font-weight:bold; font-size:16px;">${seatInfo.id}</span>
+                    <div class="seat-info-small" id="info-${seatInfo.id}"></div>
+                `;
+
+                if (typeof seatInfo.col === 'number') seatEl.style.gridColumn = seatInfo.col;
+                
+                seatEl.addEventListener('click', () => openModal(seatInfo.id));
+                busGrid.appendChild(seatEl);
+            });
+        }
+
+        // ACTUALIZAR VISUALES Y TABLA
+        function refreshAll() {
+            updateSeatVisuals();
+            renderManifestTable();
+        }
+
+        function updateSeatVisuals() {
+            document.querySelectorAll('.seat').forEach(seat => {
+                const id = seat.dataset.id;
+                const infoDiv = seat.querySelector('.seat-info-small');
+                
+                if (passengersData[id]) {
+                    seat.classList.add('occupied');
+                    const firstName = passengersData[id].fullName.split(' ')[0]; 
+                    const idNum = passengersData[id].idNum; 
+                    
+                    infoDiv.innerHTML = `
+                        <div style="font-weight:bold; margin-bottom:1px;">${firstName}</div>
+                        <div style="font-size:10px; opacity:0.9;">${idNum}</div>
+                    `;
+                } else {
+                    seat.classList.remove('occupied');
+                    infoDiv.innerText = "Libre";
+                }
+            });
+        }
+
+        // GENERAR TABLA WEB (Para ver en pantalla)
+        function renderManifestTable() {
+            manifestBody.innerHTML = '';
+            
+            const sortedSeats = [...seatLayout].sort((a, b) => {
+                const numA = parseInt(a.id);
+                const numB = parseInt(b.id);
+                return numA - numB;
+            });
+
+            sortedSeats.forEach(seat => {
+                const data = passengersData[seat.id];
+                const row = document.createElement('tr');
+                const seatNumber = parseInt(seat.id);
+
+                if (data) {
+                    row.innerHTML = `
+                        <td class="col-seat" style="background:#e8f5e9">${seatNumber}</td>
+                        <td>${data.fullName}</td>
+                        <td>${data.nation}</td>
+                        <td>${data.idNum}</td>
+                    `;
+                } else {
+                    row.innerHTML = `
+                        <td class="col-seat">${seatNumber}</td>
+                        <td colspan="3" style="color:#ccc; font-style:italic;">--- Disponible ---</td>
+                    `;
+                }
+                manifestBody.appendChild(row);
+            });
+        }
+
+        // --- LÓGICA DE EXPORTACIÓN EXCEL (MODIFICADA) ---
+        function generateStrictExcel() {
+            // 1. Preparar datos ordenados
+            const sortedSeats = [...seatLayout].sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+            // 2. Construir filas de datos
+            let dataRows = '';
+            sortedSeats.forEach(seat => {
+                const data = passengersData[seat.id];
+                const seatNo = parseInt(seat.id); 
+                const name = data ? data.fullName : "";
+                const nation = data ? data.nation : "";
+                const idNum = data ? data.idNum : "";
+
+                // CAMBIO: Ahora todas las celdas usan cell-center
+                dataRows += `
+                <tr style="height: 34px;">
+                    <td class="cell-center">${seatNo}</td>
+                    <td class="cell-center">${name}</td>
+                    <td class="cell-center">${nation}</td>
+                    <td class="cell-center">${idNum}</td>
+                </tr>`;
+            });
+
+            // 3. Plantilla HTML estricta con CSS incrustado
+            const excelTemplate = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                  xmlns:x="urn:schemas-microsoft-com:office:excel" 
+                  xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: 'Verdana', sans-serif; }
+                    
+                    /* Estilos Generales de Celda */
+                    td {
+                        border: 0.5pt solid black;
+                        font-family: 'Verdana', sans-serif;
+                        font-size: 7pt;
+                        vertical-align: middle;
+                    }
+
+                    /* Clases Específicas */
+                    .title-main {
+                        font-size: 11pt;
+                        font-weight: bold;
+                        text-align: center;
+                        border: none;
+                        background-color: transparent;
+                    }
+                    /* Subtítulo con color gris */
+                    .title-sub {
+                        font-size: 7pt;
+                        font-weight: bold;
+                        text-align: center;
+                        border: none;
+                        background-color: #BFBFBF; /* Blanco, Fondo 2, oscuro 25% */
+                    }
+                    /* Encabezados de columna con color gris */
+                    .header-cell {
+                        font-weight: bold;
+                        text-align: center;
+                        background-color: #BFBFBF; /* Blanco, Fondo 2, oscuro 25% */
+                        font-size: 7pt;
+                    }
+                    /* Todas las celdas centradas según pedido */
+                    .cell-center { 
+                        text-align: center; 
+                    }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <col width="70" style="width: 70px;">
+                    <col width="350" style="width: 350px;">
+                    <col width="280" style="width: 280px;">
+                    <col width="300" style="width: 300px;">
+
+                    <tr style="height: 34px;">
+                        <td colspan="4" class="title-main">ANEXO No.2</td>
+                    </tr>
+                    <tr style="height: 34px;">
+                        <td colspan="4" class="title-sub">LISTA DE PASAJEROS</td>
+                    </tr>
+
+                    <tr style="height: 34px;">
+                        <td class="header-cell">No</td>
+                        <td class="header-cell">NOMBRE DEL PASAJERO</td>
+                        <td class="header-cell">NACIONALIDAD</td>
+                        <td class="header-cell">CÉDULA/PASAPORTE</td>
+                    </tr>
+
+                    ${dataRows}
+                </table>
+            </body>
+            </html>`;
+
+            // 4. Descarga
+            const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "Anexo2_ListaPasajeros.xls";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // LÓGICA DEL MODAL
+        function openModal(seatId) {
+            if(isReadOnlyMode) return;
+            currentSeatId = seatId;
+            document.getElementById('modalSeatLabel').innerText = seatId;
+            
+            if (passengersData[seatId]) {
+                const p = passengersData[seatId];
+                inpFullName.value = p.fullName;
+                inpNation.value = p.nation;
+                inpId.value = p.idNum;
+                btnDelete.style.display = 'block';
+            } else {
+                inpFullName.value = '';
+                // CAMBIO: Valor default en mayúsculas
+                inpNation.value = 'ECUATORIANO';
+                inpId.value = '';
+                btnDelete.style.display = 'none';
+            }
+            modal.style.display = 'flex';
+            inpFullName.focus();
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+            currentSeatId = null;
+        }
+
+        function savePassenger() {
+            if (!inpFullName.value || !inpId.value) {
+                alert("Por favor completa el Nombre y la Cédula.");
+                return;
+            }
+
+            passengersData[currentSeatId] = {
+                fullName: inpFullName.value.trim(),
+                nation: inpNation.value.trim(), // Se guarda tal como está (ECUATORIANO)
+                idNum: inpId.value.trim()
+            };
+
+            saveToLocalStorage();
+            refreshAll();
+            closeModal();
+        }
+
+        function deletePassenger() {
+            if(confirm('¿Liberar este asiento?')) {
+                delete passengersData[currentSeatId];
+                saveToLocalStorage();
+                refreshAll();
+                closeModal();
+            }
+        }
+
+        function loadLocalData() {
+            const stored = localStorage.getItem('busSeatsData_v5');
+            if (stored) passengersData = JSON.parse(stored);
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('busSeatsData_v5', JSON.stringify(passengersData));
+        }
+
+        function generateShareLink() {
+            const encodedData = btoa(JSON.stringify(passengersData));
+            const shareUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?data=${encodedData}`;
+            const linkInput = document.getElementById('shareLinkInput');
+            linkInput.value = shareUrl;
+            linkInput.style.display = 'block';
+            linkInput.select();
+            document.execCommand("copy");
+            alert("Enlace copiado. ¡Compártelo!");
+        }
+
+        init();
+    </script>
+</body>
+</html>
